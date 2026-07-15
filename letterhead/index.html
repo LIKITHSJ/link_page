@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Growth Bridge Letterhead Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body{font-family:Arial,sans-serif;max-width:700px;margin:30px auto;padding:0 20px;color:#1a2b4c}
+h2{color:#123a63}
+select,input,textarea{width:100%;padding:8px;margin:6px 0 14px;border:1px solid #ccc;border-radius:4px;font-size:14px;box-sizing:border-box}
+textarea{min-height:70px}
+label{font-weight:bold;font-size:13px}
+button{background:#2e7d32;color:#fff;border:none;padding:12px 24px;border-radius:5px;font-size:15px;cursor:pointer}
+button:hover{background:#245e26}
+#formFields{border-top:2px solid #123a63;padding-top:10px;margin-top:10px}
+</style>
+</head>
+<body>
+<h2>Growth Bridge — Letterhead Generator</h2>
+
+<label>Select Letter Type</label>
+<select id="templateSelect" onchange="renderForm()"></select>
+
+<div id="formFields"></div>
+<button onclick="generatePDF()">Generate PDF</button>
+
+<script>
+const SENDERS = ["Founder & CEO","Co-founder","Head of Finance","Executive Manager","General Manager"];
+
+const DATE_FIELDS = ["start_date","end_date","joining_date","due_date","validity_date","last_working_day","incident_date","acceptance_deadline"];
+const NUMBER_FIELDS = ["cost_estimate","subtotal","gst_amount","total_amount","salary","basic","hra","allowances","gross_salary","gst_rate"];
+const TEXTAREA_FIELDS = ["scope_of_work","deliverables","client_address","items","request_body","recipient_address","grounds_of_notice","purpose_of_mou","responsibilities","terms","message_body","address","key_strengths","key_contribution","reason_for_termination","settlement_details","performance_concerns","improvement_goals","issue_description","corrective_action_expected","project_description","bank_details","branch_address","authority_address"];
+const SELECT_FIELDS = { he_she_they: ["He","She","They"] };
+
+const SIG = "\n\n{{sender_name}}\nGrowth Bridge";
+
+const TEMPLATES = [
+{name:"Client Proposal", defaultSender:"Co-founder", body:
+`Date: {{date}}
+
+To,
+{{client_name}}
+{{client_company}}
+
+Subject: Proposal for {{project_title}}
+
+Dear {{client_name}},
+
+Thank you for considering Growth Bridge for your {{project_type}} requirements. We are pleased to present the following proposal.
+
+Project Scope: {{scope_of_work}}
+Deliverables: {{deliverables}}
+Timeline: {{timeline}}
+Estimated Investment: Rs. {{cost_estimate}}
+
+We look forward to partnering with you on this initiative.
+
+Warm regards,${SIG}`},
+
+{name:"Quotation", defaultSender:"Head of Finance", body:
+`Date: {{date}}
+Quotation No: {{quote_number}}
+
+To,
+{{client_name}}
+
+Subject: Quotation for {{service_name}}
+
+Dear {{client_name}},
+
+Please find below our quotation for the requested services:
+
+{{items}}
+
+Subtotal: Rs. {{subtotal}}
+GST: Rs. {{gst_amount}}
+Total: Rs. {{total_amount}}
+
+This quotation is valid until {{validity_date}}.${SIG}`},
+
+{name:"Invoice", defaultSender:"Head of Finance", body:
+`INVOICE
+
+Invoice No: {{invoice_number}}     Date: {{date}}
+Bill To: {{client_name}}
+{{client_address}}
+GSTIN: {{client_gstin}}
+
+{{items}}
+
+Subtotal: Rs. {{subtotal}}
+GST ({{gst_rate}}%): Rs. {{gst_amount}}
+Total Due: Rs. {{total_amount}}
+
+Due Date: {{due_date}}
+Payment Details: {{bank_details}}${SIG}`},
+
+{name:"Contract / Service Agreement", defaultSender:"Founder & CEO", body:
+`SERVICE AGREEMENT
+
+This Agreement is made on {{date}} between Growth Bridge ("Service Provider") and {{client_name}} ("Client").
+
+1. Scope of Work: {{scope_of_work}}
+2. Duration: {{start_date}} to {{end_date}}
+3. Payment Terms: {{payment_terms}}
+4. Confidentiality: Both parties agree to maintain confidentiality of shared information.
+5. Termination: Either party may terminate with {{notice_period}} written notice.${SIG}
+
+_______________________
+{{client_name}}`},
+
+{name:"Offer Letter", defaultSender:"General Manager", body:
+`Date: {{date}}
+
+Dear {{candidate_name}},
+
+We are pleased to offer you the position of {{role}} at Growth Bridge. Your date of joining will be {{joining_date}}, and you will report to {{reporting_manager}}.
+
+Compensation: Rs. {{salary}} per annum (CTC)
+Location: {{location}}
+
+Please confirm your acceptance by {{acceptance_deadline}}.
+
+Welcome aboard!${SIG}`},
+
+{name:"Appointment Letter", defaultSender:"General Manager", body:
+`Date: {{date}}
+
+Dear {{employee_name}},
+
+Further to your acceptance of our offer, we are pleased to confirm your appointment as {{designation}} at Growth Bridge, effective {{joining_date}}.
+
+Terms of Employment:
+- Employment Type: {{employment_type}}
+- Probation Period: {{probation_period}}
+- Notice Period: {{notice_period}}
+- Compensation: Rs. {{salary}} CTC
+
+We look forward to a successful association.${SIG}`},
+
+{name:"Experience / Relieving Certificate", defaultSender:"General Manager", body:
+`TO WHOMSOEVER IT MAY CONCERN
+
+This is to certify that {{employee_name}} was employed with Growth Bridge as {{designation}} from {{start_date}} to {{end_date}}.
+
+During this tenure, {{he_she_they}} was found to be sincere, hardworking, and professional. {{employee_name}}'s last working day with us was {{last_working_day}}, and all dues have been settled.
+
+We wish {{employee_name}} success in future endeavors.${SIG}`},
+
+{name:"NOC (No Objection Certificate)", defaultSender:"General Manager", body:
+`TO WHOMSOEVER IT MAY CONCERN
+
+Date: {{date}}
+
+This is to certify that Growth Bridge has no objection to {{person_name}} pursuing {{purpose}}.
+
+{{person_name}} has been associated with us as {{designation}} since {{start_date}}, and this NOC is issued upon request for {{purpose}}.${SIG}`},
+
+{name:"Internship Completion Letter", defaultSender:"Executive Manager", body:
+`TO WHOMSOEVER IT MAY CONCERN
+
+This is to certify that {{intern_name}} successfully completed an internship at Growth Bridge from {{start_date}} to {{end_date}}, working on {{project_role}}.
+
+During this period, {{intern_name}} demonstrated {{key_skills}} and contributed effectively to: {{project_description}}
+
+We wish {{intern_name}} all the best for future endeavors.${SIG}`},
+
+{name:"Govt Body Letter (GST/MSME/Tax)", defaultSender:"Head of Finance", body:
+`Date: {{date}}
+
+To,
+{{authority_name}}
+{{authority_address}}
+
+Subject: {{subject}} — Reg: {{reference_number}}
+
+Sir/Madam,
+
+With reference to the above subject, Growth Bridge (Reg: {{registration_number}}) submits the following for your kind consideration:
+
+{{request_body}}
+
+We request you to process this at the earliest.
+
+Thanking you,${SIG}`},
+
+{name:"Bank Correspondence", defaultSender:"Head of Finance", body:
+`Date: {{date}}
+
+To,
+The Branch Manager
+{{bank_name}}
+{{branch_address}}
+
+Subject: {{subject}}
+
+Dear Sir/Madam,
+
+We are writing regarding our account ({{account_number}}) held with your branch.
+
+{{request_body}}
+
+We would appreciate your assistance in this matter at the earliest.${SIG}`},
+
+{name:"Legal Notice", defaultSender:"Founder & CEO", body:
+`LEGAL NOTICE
+
+Date: {{date}}
+
+To,
+{{recipient_name}}
+{{recipient_address}}
+
+Subject: Legal Notice regarding {{subject_matter}}
+
+This is to bring to your notice that {{grounds_of_notice}}
+
+You are hereby called upon to {{demand_or_action}} within {{response_deadline}} from receipt of this notice, failing which Growth Bridge shall be constrained to initiate appropriate legal proceedings, entirely at your risk, cost, and consequences.${SIG}
+
+On behalf of Growth Bridge`},
+
+{name:"Vendor/Partner MOU", defaultSender:"Co-founder", body:
+`MEMORANDUM OF UNDERSTANDING
+
+This MOU is entered into on {{date}} between Growth Bridge and {{partner_name}}.
+
+1. Purpose: {{purpose_of_mou}}
+2. Roles & Responsibilities: {{responsibilities}}
+3. Duration: {{start_date}} to {{end_date}}
+4. Terms: {{terms}}
+
+This MOU is non-binding and reflects mutual intent to collaborate in good faith.${SIG}
+
+_______________________
+{{partner_name}}`},
+
+{name:"Internal Memo", defaultSender:"General Manager", body:
+`INTERNAL MEMO
+
+Date: {{date}}
+To: {{department_or_team}}
+From: {{sender_name}}
+Subject: {{subject}}
+
+{{message_body}}
+
+Please reach out to {{contact_person}} for any queries.${SIG}`},
+
+{name:"Salary Certificate", defaultSender:"Head of Finance", body:
+`TO WHOMSOEVER IT MAY CONCERN
+
+This is to certify that {{employee_name}} is employed with Growth Bridge as {{designation}} since {{start_date}}, drawing a monthly salary as detailed below:
+
+Basic: Rs. {{basic}}
+HRA: Rs. {{hra}}
+Other Allowances: Rs. {{allowances}}
+Gross Monthly Salary: Rs. {{gross_salary}}
+
+This certificate is issued upon request for {{purpose}}.${SIG}`},
+
+{name:"Address Proof Letter", defaultSender:"General Manager", body:
+`TO WHOMSOEVER IT MAY CONCERN
+
+This is to certify that {{employee_name}}, employed with Growth Bridge as {{designation}}, resides at the following address as per our records:
+
+{{address}}
+
+This letter is issued upon request for {{purpose}}.${SIG}`},
+
+{name:"LOR (Letter of Recommendation)", defaultSender:"Executive Manager", body:
+`Date: {{date}}
+
+To Whom It May Concern,
+
+I am pleased to recommend {{candidate_name}}, who worked with Growth Bridge as {{role}} from {{start_date}} to {{end_date}}, under my supervision.
+
+During this time, {{candidate_name}} demonstrated {{key_strengths}} and contributed significantly to: {{key_contribution}}. I am confident {{he_she_they}} will excel in {{future_goal}}.
+
+I recommend {{candidate_name}} without reservation.
+
+{{sender_name}}
+Growth Bridge`},
+
+{name:"Termination Letter", defaultSender:"General Manager", body:
+`Date: {{date}}
+
+Dear {{employee_name}},
+
+This letter is to inform you that your employment with Growth Bridge as {{designation}} is being terminated, effective {{last_working_day}}, due to {{reason_for_termination}}
+
+As per company policy, you are entitled to {{notice_period_or_pay}}. All dues, including {{settlement_details}}, will be settled within {{settlement_timeline}}.
+
+Please ensure return of all company property before your last working day.${SIG}`},
+
+{name:"Warning Letter", defaultSender:"General Manager", body:
+`Date: {{date}}
+
+Dear {{employee_name}},
+
+This letter serves as a formal warning regarding: {{issue_description}}, observed on {{incident_date}}.
+
+This does not meet the standards expected at Growth Bridge. You are advised to {{corrective_action_expected}} with immediate effect.
+
+Failure to improve may result in further disciplinary action, up to and including termination.${SIG}`},
+
+{name:"PIP / Observation Letter", defaultSender:"General Manager", body:
+`Date: {{date}}
+
+Dear {{employee_name}},
+
+Following recent performance reviews, we have identified the following areas of concern in your role as {{designation}}:
+
+{{performance_concerns}}
+
+You will be placed under a Performance Improvement Plan for {{review_period}}, from {{start_date}} to {{end_date}}. During this time, you are expected to:
+
+{{improvement_goals}}
+
+Your progress will be reviewed by {{reviewing_manager}}. Failure to meet expected standards may result in {{consequence}}.${SIG}`}
+];
+
+function extractFields(body){
+  const set = new Set();
+  (body.match(/{{(\w+)}}/g)||[]).forEach(m=>{
+    const k = m.slice(2,-2);
+    if(k!=='date' && k!=='sender_name') set.add(k);
+  });
+  return [...set];
+}
+function labelFor(k){ return k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+
+const sel = document.getElementById('templateSelect');
+TEMPLATES.forEach((t,i)=>{
+  const o=document.createElement('option'); o.value=i; o.textContent=t.name; sel.appendChild(o);
+});
+
+function renderForm(){
+  const t = TEMPLATES[sel.value];
+  const fields = extractFields(t.body);
+  let html = `<label>Date</label><input type="date" id="f_date" value="${new Date().toISOString().split('T')[0]}">`;
+  html += `<label>Sender</label><select id="f_sender_name">` +
+    SENDERS.map(s=>`<option ${s===t.defaultSender?'selected':''}>${s}</option>`).join('') + `</select>`;
+  fields.forEach(k=>{
+    html += `<label>${labelFor(k)}</label>`;
+    if(SELECT_FIELDS[k]){
+      html += `<select id="f_${k}">` + SELECT_FIELDS[k].map(o=>`<option>${o}</option>`).join('') + `</select>`;
+    } else if(TEXTAREA_FIELDS.includes(k)){
+      html += `<textarea id="f_${k}"></textarea>`;
+    } else if(DATE_FIELDS.includes(k)){
+      html += `<input type="date" id="f_${k}">`;
+    } else if(NUMBER_FIELDS.includes(k)){
+      html += `<input type="number" id="f_${k}">`;
+    } else {
+      html += `<input type="text" id="f_${k}">`;
+    }
+  });
+  document.getElementById('formFields').innerHTML = html;
+}
+renderForm();
+
+function fmtDate(v){
+  if(!v) return '';
+  const d = new Date(v+'T00:00:00');
+  return isNaN(d) ? v : d.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+}
+
+function generatePDF(){
+  const t = TEMPLATES[sel.value];
+  const fields = extractFields(t.body);
+  const values = { date: fmtDate(document.getElementById('f_date').value),
+                    sender_name: document.getElementById('f_sender_name').value };
+  fields.forEach(k=>{
+    const el = document.getElementById('f_'+k);
+    values[k] = DATE_FIELDS.includes(k) ? fmtDate(el.value) : el.value;
+  });
+  let text = t.body.replace(/{{(\w+)}}/g, (m,k)=> values[k] !== undefined ? values[k] : '');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p','mm','a4');
+  const img = new Image();
+  img.onload = ()=>{
+    const addPage = ()=>{ doc.addImage(img,'PNG',0,0,210,297); };
+    addPage();
+    doc.setFont('times','normal');
+    doc.setFontSize(11);
+    let y = 68;
+    const paragraphs = text.split('\n');
+    paragraphs.forEach(p=>{
+      const lines = doc.splitTextToSize(p, 170);
+      lines.forEach(line=>{
+        if(y > 268){ doc.addPage(); addPage(); y = 68; }
+        doc.text(line, 20, y);
+        y += 6;
+      });
+      if(p==='') y += 0; else y += 1;
+    });
+    doc.save(t.name.replace(/[^a-z0-9]/gi,'_') + '.pdf');
+  };
+  img.src = 'letterhead.png';
+}
+</script>
+</body>
+</html>
